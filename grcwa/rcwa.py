@@ -1,6 +1,7 @@
 from . import backend as bd
 from .fft_funs import Epsilon_fft,get_ifft
 from .kbloch import Lattice_Reciprocate,Lattice_getG,Lattice_SetKs
+import numpy as non_autograd_np
 
 class obj:
     def __init__(self,nG,L1,L2,freq,theta,phi,verbose=1):
@@ -502,7 +503,14 @@ def GetSMatrix(indi,indj,q_list,phi_list,kp_list,thickness_list):
         Q = bd.dot(bd.inv(phi_list[l]),  phi_list[lp1])
         ## P = ql*inv(kp_l*phi_l) * kp_lp1*phi_lp1*q_lp1^-1
         P1 = bd.dot(bd.diag(q_list[l]),   bd.inv(bd.dot(kp_list[l],phi_list[l])))
-        P2 = bd.dot(bd.dot(kp_list[lp1],phi_list[lp1]),   bd.diag(1./q_list[lp1]))
+
+        #
+        # Need to account for transition from propagating to evanescent where the propagation constant can be 0 (or effectively 0).
+        # This is handled in S4 by just multiplying by zero instead of inverse of q
+        #
+        max_q_el = non_autograd_np.max( non_autograd_np.abs( q_list[ lp1 ] ) )
+        adjust_q_list_div = bd.where( bd.abs( q_list[ lp1 ] ) < non_autograd_np.finfo( q_list[ lp1 ].dtype ).eps * max_q_el, 0., 1. / q_list[ lp1 ] )
+        P2 = bd.dot(bd.dot(kp_list[lp1],phi_list[lp1]),   bd.diag( adjust_q_list_div ) )
         P = bd.dot(P1,P2)
         # P1 = bd.dot(kp_list[l],phi_list[l])
         # P2 = bd.dot(bd.dot(kp_list[lp1],phi_list[lp1]),   bd.diag(1./q_list[lp1]))
